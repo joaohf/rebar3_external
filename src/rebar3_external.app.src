@@ -1,0 +1,14 @@
+{application, rebar3_external, [
+    {description, "A rebar plugin to download external resources."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {modules, []},
+
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.
