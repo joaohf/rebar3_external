@@ -111,3 +111,9 @@ It's important to note that the plugins does the full rebar3 dependency manageme
 The basic idea is to provide better external (non OTP dependency) for projects that needs to interface with languages like C, C++, Rust, ...
 
 Please, check out the [rebar3_external_example](https://github.com/joaohf/rebar3_external_example) to check full working example.
+
+## License
+
+Release under [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
+
+Parts of [src/rebar_external_resource.erl](src/rebar_external_resource.erl) was based on [rebar_raw_resosurce](https://github.com/basho/rebar_raw_resource).
