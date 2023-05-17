@@ -59,9 +59,12 @@ lock_git(AppInfo, CustomState, Git) ->
 
     {external, _What, CopyTo, Opts} = SourceTuple,
 
-    AppInfo0 = rebar_app_info:source(AppInfo, Git),
-    rebar_git_resource:lock(AppInfo0, CustomState),
-    {external, Git, CopyTo, Opts}.
+    Dir = filename:join(rebar_app_info:dir(AppInfo), CopyTo),
+    AppInfo0 = rebar_app_info:dir(AppInfo, Dir),
+    AppInfo1 = rebar_app_info:source(AppInfo0, Git),
+    GitRef = rebar_git_resource:lock(AppInfo1, CustomState),
+
+    {external, GitRef, CopyTo, Opts}.
 
 download(TmpDir, AppInfo, RebarState, CustomState) ->
     SourceTuple = rebar_app_info:source(AppInfo),
