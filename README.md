@@ -112,8 +112,50 @@ The basic idea is to provide better external (non OTP dependency) for projects t
 
 Please, check out the [rebar3_external_example](https://github.com/joaohf/rebar3_external_example) to check full working example.
 
+
+## Sparse-feature
+
+Sometimes we would like to get partial data from a repository. 
+In order to implement this we can use the sparse-checkout functionality from git.
+
+### Example
+```
+{deps, [
+    % Clone external dependency from git a repository - but only get a subfolder
+    {freedict,
+        {external, {git, "https://github.com/meetDeveloper/freeDictionaryAPI", {branch, "master"}}, "definitions", [
+            {description, "freedict: definitions"},
+            {vsn, "2.0.18"},
+            {sparse,"meta/wordList},
+            {sparse,"LICENSE"}
+        ]}
+    }
+]}.
+```
+
+You can add multiple sparse-statements, the first one will be converted into a sparse-checkout set-command,
+all others will be a add-command. This will make sure that only the defined data is pulled in.
+
+After running 'rebar3 get-deps' - you can observe what data was pulled in:
+
+```
+$ find _build/default/lib/freedict/definitions | grep -v git
+
+_build/default/lib/freedict/definitions
+_build/default/lib/freedict/definitions/meta
+_build/default/lib/freedict/definitions/meta/wordList
+_build/default/lib/freedict/definitions/meta/wordList/english.txt
+_build/default/lib/freedict/definitions/LICENSE
+
+```
+
+### Links
+
+- https://git-scm.com/docs/git-sparse-checkout
+
+
 ## License
 
 Release under [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
-Parts of [src/rebar_external_resource.erl](src/rebar_external_resource.erl) was based on [rebar_raw_resosurce](https://github.com/basho/rebar_raw_resource).
+Parts of [src/rebar_external_resource.erl](src/rebar_external_resource.erl) was based on [rebar_raw_resource](https://github.com/basho/rebar_raw_resource).

@@ -21,6 +21,10 @@
 
 -module(rebar_external_resource).
 
+%% Taken verbatim from rebar.hrl
+-define(FMT(Str, Args), lists:flatten(io_lib:format(Str, Args))).
+-define(DEBUG(Str, Args), rebar_log:log(debug, Str, Args)).
+
 -export([
     init/2,
     lock/2,
@@ -126,26 +130,81 @@ download_http(TmpDir, AppInfo, Url, Checksum) ->
         ])
     ),
     rebar_utils:sh(Cmd0, [{cd, TmpDir}]),
-
     ok.
+
+% Copied from rebare_git_subdir_resource
+to_ref({branch, Branch}) ->
+    Branch;
+to_ref({tag, Tag}) ->
+    Tag;
+to_ref({ref, Ref}) ->
+    Ref;
+to_ref(Rev) ->
+    Rev.
 
 download_git(TmpDir, AppInfo, RebarState, CustomState, Git) ->
     SourceTuple = rebar_app_info:source(AppInfo),
     Name = rebar_app_info:name(AppInfo),
     AppInfo0 = rebar_app_info:source(AppInfo, Git),
 
-    {external, _What, CopyTo, Opts} = SourceTuple,
+    {external, What, CopyTo, Opts} = SourceTuple,
 
     OutputCopyTo = filename:join([TmpDir, CopyTo]),
     ok = rebar_file_utils:ensure_dir(OutputCopyTo),
 
-    DownloadResult = rebar_git_resource:download(OutputCopyTo, AppInfo0, RebarState, CustomState),
+    DownloadResult =
+        case proplists:get_all_values('sparse', Opts) of
+            % Some external repositories use git submodules, so let's
+            % initiate git submodules here.
+            % This has been added only for NON-sparse mode.
+            [] ->
+                NoSparseResults = rebar_git_resource:download(
+                    OutputCopyTo, AppInfo0, RebarState, CustomState
+                ),
+                {ok, _} = rebar_utils:sh("git submodule update --init --recursive", [
+                    {cd, OutputCopyTo}
+                ]),
+                NoSparseResults;
+            % Sparse dir has a very limited scope
+            % - Do minimal clone
+            % - Try to only get what is needed
+            % - You can use very funky syntax such as 'folder?/name?_def.xml'
+            %   - And you can add multiple sparse-statements
+            SparseDirs ->
+                Dir = OutputCopyTo,
+                {git, Url, BranchRagRefRev} = What,
+                CheckoutStmt = to_ref(BranchRagRefRev),
 
+                CmdClone = ?FMT(
+                    "git clone --filter=blob:none --no-checkout --depth 1 --sparse ~ts .", [Url]
+                ),
+                ?DEBUG("Sparse:Clone Cmd: ~s", [CmdClone]),
+                {ok, _} = rebar_utils:sh(CmdClone, [{cd, Dir}]),
+
+                IndexedDirs = lists:zip(lists:seq(1, length(SparseDirs)), SparseDirs),
+
+                lists:foreach(
+                    fun({Idx, SparseDir}) ->
+                        CmdSetAdd =
+                            case Idx of
+                                1 -> "set";
+                                _ -> "add"
+                            end,
+                        CmdSparseCheckout = ?FMT("git sparse-checkout ~ts '~ts'", [
+                            CmdSetAdd, SparseDir
+                        ]),
+                        ?DEBUG("Sparse:SparseCheckout Cmd: ~s", [CmdSparseCheckout]),
+                        {ok, _} = rebar_utils:sh(CmdSparseCheckout, [{cd, Dir}])
+                    end,
+                    IndexedDirs
+                ),
+
+                CmdCheckout = ?FMT("git checkout -q ~ts", [rebar_utils:escape_chars(CheckoutStmt)]),
+                ?DEBUG("Sparse:Checkout Cmd: ~s", [CmdCheckout]),
+                {ok, _} = rebar_utils:sh(CmdCheckout, [{cd, Dir}]),
+                {git, Url}
+        end,
     ok = rebar_file_utils:ensure_dir(TmpDir),
-
-    % Some external repositories use git submodules, so let's
-    % initiate git submodules here.
-    {ok, _} = rebar_utils:sh("git submodule update --init --recursive", [{cd, OutputCopyTo}]),
 
     case ensure_app(TmpDir, Name, Opts) of
         ok ->
